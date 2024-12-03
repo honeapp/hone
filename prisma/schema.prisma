@@ -1,0 +1,123 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model Account {
+  id                String  @id @default(auto()) @map("_id") @db.ObjectId
+  userId            String  @db.ObjectId
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.String
+  access_token      String? @db.String
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.String
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model User {
+  id                String    @id @default(auto()) @map("_id") @db.ObjectId
+  // Basic Info
+  email             String?   @unique
+  phoneNumber       String?   @unique
+  password          String?
+  emailVerified     DateTime?
+  
+  // Personal Details
+  fullName          String?
+  dateOfBirth       DateTime?
+  gender            String?
+  location          String?
+  coordinates       Float[]   // [longitude, latitude]
+  
+  // Religious Info
+  churchDenomination String?
+  religiousValues    String[]
+  
+  // Relationship Status
+  maritalStatus     String?   // single, divorced, widowed, single parent
+  lookingFor        String[]  // friendship, dating, marriage
+  
+  // Lifestyle & Preferences
+  interests         String[]
+  hobbies           String[]
+  occupation        String?
+  education         String?
+  socialHabits      Json?     // {drinking: never/social/regular, smoking: never/social/regular}
+  
+  // Profile Media
+  profilePhotos     String[]  // URLs to photos (max 5)
+  profileVideos     String[]  // URLs to videos
+  
+  // Verification
+  isVerified        Boolean   @default(false)
+  verificationLevel Int       @default(0)
+  references        Reference[]
+  
+  // Premium Features
+  isPremium         Boolean   @default(false)
+  premiumUntil      DateTime?
+  
+  // Matching & Interaction
+  swipeLikes        String[]  @db.ObjectId
+  swipeDislikes     String[]  @db.ObjectId
+  matches           Match[]
+  
+  // System Fields
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  accounts          Account[]
+  sessions          Session[]
+}
+
+model Reference {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId          String   @db.ObjectId
+  referrerName    String
+  referrerEmail   String
+  referrerPhone   String?
+  relationship    String
+  isVerified      Boolean  @default(false)
+  verifiedAt      DateTime?
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Match {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  users     User[]
+  createdAt DateTime @default(now())
+  status    String   // pending, accepted, rejected
+}
+model Session {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  sessionToken String   @unique
+  userId       String   @db.ObjectId
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
