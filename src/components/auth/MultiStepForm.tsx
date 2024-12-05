@@ -81,39 +81,48 @@ interface MultiStepFormProps {
       };
 
       const handleSubmit = async () => {
-          if (!validateStep()) {
-              return;
-          }
-
-          if (step === 5) {
-              try {
-                  const response = await fetch('/api/auth/register', {
-                      method: 'POST',
-                      headers: {
-                          'Content-Type': 'application/json',
-                      },
-                      body: JSON.stringify(formData),
-                  });
-
-                  const data = await response.json();
-
-                  if (!response.ok) {
-                      throw new Error(data.message || 'Registration failed');
-                  }
-
-                  // Handle successful registration
-                  window.location.href = '/dashboard';
-              } catch (error) {
-                  console.error('Registration error:', error);
-                  setErrors(prev => ({
-                      ...prev,
-                      submit: error.message
-                  }));
-              }
-          } else {
-              setStep(step + 1);
-          }
-      };
+        if (!validateStep()) {
+            return;
+        }
+    
+        if (step === 5) {
+            try {
+                // Log the form data being sent
+                console.log('Sending registration data:', formData);
+    
+                const response = await fetch('/api/auth/register', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        ...formData,
+                        photos: formData.photos.filter(Boolean)
+                    }),
+                });
+    
+                const data = await response.json();
+                console.log('Server response:', data);
+    
+                if (!response.ok) {
+                    throw new Error(data.message || 'Registration failed');
+                }
+    
+                // Handle successful registration
+                window.location.href = '/dashboard';
+            } catch (error: any) {
+                console.error('Full registration error:', error);
+                setErrors(prev => ({
+                    ...prev,
+                    submit: error.message || 'Registration failed. Please try again.'
+                }));
+            }
+        } else {
+            setStep(step + 1);
+        }
+    };
+    
+    
 
       const steps = [
           { number: 1, title: "Basic Info" },

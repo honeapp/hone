@@ -1,16 +1,26 @@
 import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
-import connectDB from '@/lib/mongodb';
-import User from '@/models/User';
+import clientPromise from '@/lib/mongodb';
+import { sendVerificationEmail } from '@/lib/email/emailService';
+import { v2 as cloudinary } from 'cloudinary';
+
+cloudinary.config({
+    cloud_name: 'db8lnhf7s',
+    api_key: '957638428478796',
+    api_secret: 'F4_aX5gMi_wGuSlhQGDgoGc9dAQ'
+});
 
 export async function POST(req: Request) {
     try {
-        await connectDB();
+        const client = await clientPromise;
+        const db = client.db();
         
         const data = await req.json();
-        const { 
-            email, 
-            password, 
+        console.log('Received registration data:', data);
+
+        const {
+            email,
+            password,
             fullName,
             dateOfBirth,
             gender,
@@ -20,54 +30,100 @@ export async function POST(req: Request) {
             interests,
             occupation,
             about,
-            photos 
+            photos
         } = data;
 
+        // Validate all required fields
+        const requiredFields = {
+            email,
+            password,
+            fullName,
+            dateOfBirth,
+            gender,
+            location,
+            churchDenomination,
+            maritalStatus,
+            occupation
+        };
+
+        for (const [field, value] of Object.entries(requiredFields)) {
+            if (!value) {
+                return NextResponse.json(
+                    { message: `${field} is required` },
+                    { status: 400 }
+                );
+            }
+        }
+
+        // Validate email format
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+            return NextResponse.json(
+                { message: 'Invalid email format' },
+                { status: 400 }
+            );
+        }
+
         // Check if user exists
-        const userExists = await User.findOne({ email });
+        const userExists = await db.collection('users').findOne({ email: email.toLowerCase() });
         if (userExists) {
             return NextResponse.json(
-                { error: 'User already exists' },
+                { message: 'Email already registered' },
+                { status: 400 }
+            );
+        }
+
+        // Validate password strength
+        if (password.length < 8) {
+            return NextResponse.json(
+                { message: 'Password must be at least 8 characters long' },
                 { status: 400 }
             );
         }
 
         // Hash password
-        const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(password, salt);
+        const hashedPassword = await bcrypt.hash(password, 10);
 
-        // Create user
-        const user = await User.create({
-            email,
+        // Create user with the existing structure
+        const user = await db.collection('users').insertOne({
+            email: email.toLowerCase(),
             password: hashedPassword,
             fullName,
-            dateOfBirth,
+            dateOfBirth: new Date(dateOfBirth),
             gender,
             location,
             churchDenomination,
             maritalStatus,
-            interests,
+            interests: interests || [],
             occupation,
-            about,
-            photos,
+            about: about || '',
+            photos: photos || [],
             createdAt: new Date(),
             isVerified: false,
-            profileCompleted: true
+            verificationExpires: new Date(+new Date() + 24 * 60 * 60 * 1000),
+            profileCompleted: true,
+            lastActive: new Date()
         });
 
+        // Send verification email
+        await sendVerificationEmail(user.insertedId.toString(), email);
+
         return NextResponse.json({
-            message: 'User registered successfully',
+            message: 'Registration successful. Please check your email to verify your account.',
             user: {
-                id: user._id,
-                email: user.email,
-                fullName: user.fullName
+                id: user.insertedId,
+                email: email,
+                fullName: fullName
             }
         }, { status: 201 });
 
-    } catch (error) {
+    } catch (error: any) {
         console.error('Registration error:', error);
         return NextResponse.json(
-            { error: 'Error registering user' },
+            {
+                message: 'Registration failed',
+                error: error.message
+            },
             { status: 500 }
         );
     }
