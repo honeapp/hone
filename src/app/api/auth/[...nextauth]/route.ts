@@ -1,72 +1,66 @@
-import NextAuth from 'next-auth'
-import GoogleProvider from 'next-auth/providers/google'
-import { MongoDBAdapter } from "@next-auth/mongodb-adapter"
-import clientPromise from '@/lib/mongodb-adapter'
+import NextAuth from "next-auth"
+import CredentialsProvider from "next-auth/providers/credentials"
+import { verifyJwtToken } from "@/lib/jwt"
+import clientPromise from "@/lib/mongodb"
 
 const handler = NextAuth({
-    adapter: MongoDBAdapter(clientPromise, {
-        databaseName: 'hoecweb'
-    }),
     providers: [
-        GoogleProvider({
-            clientId: process.env.GOOGLE_ID!,
-            clientSecret: process.env.GOOGLE_SECRET!,
-            authorization: {
-                params: {
-                    prompt: "consent",
-                    access_type: "offline",
-                    response_type: "code"
-                }
+        CredentialsProvider({
+            name: "Credentials",
+            credentials: {
+                email: { label: "Email", type: "email" },
+                otp: { label: "OTP", type: "text" }
             },
-            profile(profile) {
-                console.log('Google Profile Data:', profile);
+            async authorize(credentials) {
+                if (!credentials?.email || !credentials?.otp) return null
+                
+                const client = await clientPromise
+                const db = client.db()
+                
+                const user = await db.collection('users').findOne({
+                    email: credentials.email.toLowerCase(),
+                    verificationCode: credentials.otp,
+                    verificationExpires: { $gt: new Date() }
+                })
+
+                if (!user) return null
+
                 return {
-                    id: profile.sub,
-                    name: profile.name,
-                    email: profile.email,
-                    image: profile.picture,
-                    profileCompleted: false
+                    id: user._id.toString(),
+                    email: user.email,
+                    profileCompleted: user.profileCompleted
                 }
             }
-        }),
+        })
     ],
-    session: {
-        strategy: "database",
-        maxAge: 30 * 24 * 60 * 60 // 30 days
-    },
-    debug: process.env.NODE_ENV === 'development',
-    pages: {
-        signIn: '/register',
-        newUser: '/onboarding'
-    },
-    events: {
-        async signIn(message) {
-            console.log('Sign In Event:', message);
-        },
-        async createUser(message) {
-            console.log('Create User Event:', message);
-        },
-        async error(message) {
-            console.error('Auth Error Event:', message);
-        }
+    secret: process.env.NEXTAUTH_SECRET,
+    jwt: {
+        maxAge: 30 * 24 * 60 * 60, // 30 days
+        secret: process.env.NEXTAUTH_SECRET
     },
     callbacks: {
-        async signIn({ user, account, profile }) {
-            console.log('Sign In Callback:', { user, account, profile });
-            return true;
-        },
-        async session({ session, user }) {
-            console.log('Session Callback:', { session, user });
-            if (session?.user) {
-                session.user.id = user.id;
-                session.user.profileCompleted = user.profileCompleted || false;
+        async jwt({ token, user }) {
+            if (user) {
+                token.id = user.id
+                token.profileCompleted = user.profileCompleted
             }
-            return session;
+            return token
         },
-        async jwt({ token, user, account }) {
-            console.log('JWT Callback:', { token, user, account });
-            return token;
+        async session({ session, token }) {
+            if (token) {
+                session.user.id = token.id
+                session.user.profileCompleted = token.profileCompleted
+            }
+            return session
         }
+    },
+    pages: {
+        signIn: '/auth/login',
+        error: '/auth/error'
+    },
+    session: {
+        strategy: "jwt",
+        maxAge: 30 * 24 * 60 * 60 // 30 days
     }
 })
 
