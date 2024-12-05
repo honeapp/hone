@@ -15,6 +15,7 @@ export default function RegisterContainer() {
     const [email, setEmail] = useState('');
     const [emailError, setEmailError] = useState('');
     const [showMultiStep, setShowMultiStep] = useState(false);
+    const [isChecking, setIsChecking] = useState(false);
 
     const validateEmail = (email: string) => {
         const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -22,18 +23,32 @@ export default function RegisterContainer() {
     };
 
     const handleGoogleSignIn = async () => {
-        await signIn('google', { 
+        await signIn('google', {
             callbackUrl: '/onboarding',
             redirect: true,
             prompt: 'select_account'
         });
     };
 
-
-    
-
     const handleFacebookSignIn = () => {
         signIn('facebook', { callbackUrl: '/onboarding' });
+    };
+
+    const checkEmailAvailability = async (email: string) => {
+        try {
+            const response = await fetch('/api/auth/check-email', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ email }),
+            });
+            const data = await response.json();
+            return data.available;
+        } catch (error) {
+            console.error('Email check failed:', error);
+            return false;
+        }
     };
 
     const handleEmailSignIn = async (e: React.FormEvent) => {
@@ -42,7 +57,18 @@ export default function RegisterContainer() {
             setEmailError('Please enter a valid email address');
             return;
         }
+        setIsChecking(true);
         setEmailError('');
+        
+        const isAvailable = await checkEmailAvailability(email);
+        
+        if (!isAvailable) {
+            setEmailError('This email is already registered. Please sign in instead.');
+            setIsChecking(false);
+            return;
+        }
+        
+        setIsChecking(false);
         setShowMultiStep(true);
     };
 
@@ -60,7 +86,6 @@ export default function RegisterContainer() {
                                 className="container mx-auto px-4 py-12 relative"
                             >
                                 <div className="max-w-[480px] mx-auto bg-[#FBF8F1] rounded-2xl shadow-2xl overflow-hidden">
-                                    {/* Existing header */}
                                     <div className="p-8">
                                         <motion.h1
                                             initial={{ opacity: 0, y: 10 }}
@@ -72,7 +97,6 @@ export default function RegisterContainer() {
                                         </motion.h1>
                                         
                                         <div className="space-y-4">
-                                            {/* Google Button */}
                                             <motion.button
                                                 onClick={handleGoogleSignIn}
                                                 initial={{ opacity: 0, x: -20 }}
@@ -86,7 +110,6 @@ export default function RegisterContainer() {
                                                 <span>Continue with Google</span>
                                             </motion.button>
 
-                                            {/* Facebook Button */}
                                             <motion.button
                                                 onClick={handleFacebookSignIn}
                                                 initial={{ opacity: 0, x: -20 }}
@@ -100,7 +123,6 @@ export default function RegisterContainer() {
                                                 <span>Continue with Facebook</span>
                                             </motion.button>
 
-                                            {/* Email Form */}
                                             <AnimatePresence>
                                                 {showEmail && (
                                                     <motion.form
@@ -115,6 +137,7 @@ export default function RegisterContainer() {
                                                             value={email}
                                                             onChange={(e) => setEmail(e.target.value)}
                                                             placeholder="Enter your email"
+                                                            disabled={isChecking}
                                                             className="w-full p-4 rounded-xl border border-gray-300 focus:outline-none focus:border-[#100F0A] text-[#100F0A] placeholder:text-gray-400"
                                                         />
                                                         {emailError && (
@@ -122,18 +145,22 @@ export default function RegisterContainer() {
                                                         )}
                                                         <button
                                                             type="submit"
-                                                            className={`w-full bg-[#100F0A] text-white rounded-xl p-4 flex items-center justify-center space-x-3 hover:bg-[#2d2d2d] transition-all duration-300 ${relative.medium.className}`}
+                                                            disabled={isChecking}
+                                                            className={`w-full bg-[#100F0A] text-white rounded-xl p-4 flex items-center justify-center space-x-3 hover:bg-[#2d2d2d] transition-all duration-300 ${isChecking ? 'opacity-50 cursor-not-allowed' : ''} ${relative.medium.className}`}
                                                         >
                                                             <div className="w-6 flex justify-center">
-                                                                <HiMail className="w-5 h-5" />
+                                                                {isChecking ? (
+                                                                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white" />
+                                                                ) : (
+                                                                    <HiMail className="w-5 h-5" />
+                                                                )}
                                                             </div>
-                                                            <span>Continue with Email</span>
+                                                            <span>{isChecking ? 'Checking...' : 'Continue with Email'}</span>
                                                         </button>
                                                     </motion.form>
                                                 )}
                                             </AnimatePresence>
 
-                                            {/* More options button */}
                                             {!showEmail && (
                                                 <motion.button
                                                     onClick={() => setShowEmail(true)}
@@ -144,7 +171,6 @@ export default function RegisterContainer() {
                                             )}
                                         </div>
 
-                                        {/* App download section */}
                                         <motion.div
                                             initial={{ opacity: 0, y: 20 }}
                                             animate={{ opacity: 1, y: 0 }}
@@ -173,7 +199,6 @@ export default function RegisterContainer() {
                         )}
                     </AnimatePresence>
 
-                    {/* Cookie consent banner */}
                     <motion.div
                         initial={{ y: 100 }}
                         animate={{ y: 0 }}
