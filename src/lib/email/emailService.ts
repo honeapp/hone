@@ -1,5 +1,4 @@
 import nodemailer from 'nodemailer';
-import { createVerificationEmailTemplate } from './templates/verificationEmail';
 
 const transporter = nodemailer.createTransport({
     host: process.env.EMAIL_SERVER_HOST,
@@ -14,11 +13,9 @@ const transporter = nodemailer.createTransport({
     }
 });
 
-export const sendVerificationEmail = async (userId: string, email: string) => {
+export const sendOTPEmail = async (email: string, otp: string) => {
     try {
-        console.log('Initiating verification email send to:', email);
-        
-        const verificationUrl = `${process.env.NEXTAUTH_URL}/api/auth/verify?token=${userId}`;
+        console.log('Initiating OTP email send to:', email);
         
         const mailOptions = {
             from: {
@@ -26,9 +23,19 @@ export const sendVerificationEmail = async (userId: string, email: string) => {
                 address: process.env.EMAIL_FROM!
             },
             to: email,
-            subject: 'Verify your Heaven on Earth Connections account',
-            html: createVerificationEmailTemplate(verificationUrl),
-            text: `Please verify your email by clicking: ${verificationUrl}`,
+            subject: 'Your Heaven on Earth Connections Verification Code',
+            html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                    <h1 style="color: #100F0A; text-align: center; margin-bottom: 30px;">Verify Your Email</h1>
+                    <div style="background-color: #FBF8F1; padding: 30px; border-radius: 12px; text-align: center;">
+                        <p style="font-size: 18px; color: #100F0A; margin-bottom: 20px;">Your verification code is:</p>
+                        <div style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #100F0A; margin: 30px 0;">
+                            ${otp}
+                        </div>
+                        <p style="color: #666; margin-top: 20px;">This code will expire in 10 minutes.</p>
+                    </div>
+                </div>
+            `,
             headers: {
                 'X-Priority': '1',
                 'X-MSMail-Priority': 'High'
@@ -36,16 +43,16 @@ export const sendVerificationEmail = async (userId: string, email: string) => {
         };
 
         const info = await transporter.sendMail(mailOptions);
-        console.log('Verification email sent successfully:', info.messageId);
+        console.log('OTP email sent successfully:', info.messageId);
         
-        return userId;
+        return true;
     } catch (error) {
-        console.error('Failed to send verification email:', error);
-        throw new Error('Failed to send verification email');
+        console.error('Failed to send OTP email:', error);
+        throw new Error('Failed to send OTP email');
     }
 };
 
-// Verify transporter connection
+// Keep the transporter verification
 transporter.verify((error, success) => {
     if (error) {
         console.error('SMTP connection error:', error);

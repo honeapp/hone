@@ -1,6 +1,5 @@
 import NextAuth from "next-auth"
 import CredentialsProvider from "next-auth/providers/credentials"
-import { verifyJwtToken } from "@/lib/jwt"
 import clientPromise from "@/lib/mongodb"
 
 const handler = NextAuth({
@@ -19,8 +18,8 @@ const handler = NextAuth({
                 
                 const user = await db.collection('users').findOne({
                     email: credentials.email.toLowerCase(),
-                    verificationCode: credentials.otp,
-                    verificationExpires: { $gt: new Date() }
+                    isVerified: true,
+                    verificationCode: null
                 })
 
                 if (!user) return null
@@ -33,11 +32,6 @@ const handler = NextAuth({
             }
         })
     ],
-    secret: process.env.NEXTAUTH_SECRET,
-    jwt: {
-        maxAge: 30 * 24 * 60 * 60, // 30 days
-        secret: process.env.NEXTAUTH_SECRET
-    },
     callbacks: {
         async jwt({ token, user }) {
             if (user) {
@@ -60,7 +54,7 @@ const handler = NextAuth({
     },
     session: {
         strategy: "jwt",
-        maxAge: 30 * 24 * 60 * 60 // 30 days
+        maxAge: 30 * 24 * 60 * 60
     }
 })
 
