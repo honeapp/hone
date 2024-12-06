@@ -3,6 +3,8 @@ import bcrypt from 'bcryptjs';
 import clientPromise from '@/lib/mongodb';
 import { sendVerificationEmail } from '@/lib/email/emailService';
 import { v2 as cloudinary } from 'cloudinary';
+import { sendVerificationEmail } from '@/lib/email/emailService';
+
 
 cloudinary.config({
     cloud_name: 'db8lnhf7s',

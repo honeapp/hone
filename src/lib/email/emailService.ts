@@ -13,9 +13,10 @@ const transporter = nodemailer.createTransport({
     }
 });
 
-export const sendOTPEmail = async (email: string, otp: string) => {
+// Change from sendOTPEmail to sendVerificationEmail
+export const sendVerificationEmail = async (userId: string, email: string) => {
     try {
-        console.log('Initiating OTP email send to:', email);
+        const otp = Math.floor(1000 + Math.random() * 9000).toString();
         
         const mailOptions = {
             from: {
@@ -43,14 +44,15 @@ export const sendOTPEmail = async (email: string, otp: string) => {
         };
 
         const info = await transporter.sendMail(mailOptions);
-        console.log('OTP email sent successfully:', info.messageId);
+        console.log('Verification email sent successfully:', info.messageId);
         
         return true;
     } catch (error) {
-        console.error('Failed to send OTP email:', error);
-        throw new Error('Failed to send OTP email');
+        console.error('Failed to send verification email:', error);
+        throw new Error('Failed to send verification email');
     }
 };
+
 
 // Keep the transporter verification
 transporter.verify((error, success) => {
