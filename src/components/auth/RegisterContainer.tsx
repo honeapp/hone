@@ -4,36 +4,101 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useState } from 'react';
 import { FcGoogle } from 'react-icons/fc';
 import { FaFacebook } from 'react-icons/fa';
-import { HiMail } from 'react-icons/hi';
+import { HiMail, HiPhone } from 'react-icons/hi';
 import { relative } from '@/app/fonts';
 import ClientOnly from '../ClientOnly';
 import { signIn } from 'next-auth/react';
 import MultiStepForm from './MultiStepForm';
+import { SocialButton } from './components/SocialButton';
+import { Divider } from './components/Divider';
+import { AuthMethodButton } from './components/AuthMethodButton';
+import { AuthInput } from './components/AuthInput';
+import { AppDownload } from './components/AppDownload';
+import CookieConsent from '../common/CookieConsent';
+
+
+
+type AuthMethod = 'email' | 'phone' | null;
 
 export default function RegisterContainer() {
-    const [showEmail, setShowEmail] = useState(false);
+    const [authMethod, setAuthMethod] = useState<AuthMethod>(null);
     const [email, setEmail] = useState('');
-    const [emailError, setEmailError] = useState('');
+    const [phone, setPhone] = useState('');
+    const [loading, setLoading] = useState({
+        google: false,
+        facebook: false,
+        email: false
+    });
+    const [error, setError] = useState('');
     const [showMultiStep, setShowMultiStep] = useState(false);
-    const [isChecking, setIsChecking] = useState(false);
 
     const validateEmail = (email: string) => {
         const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         return regex.test(email);
     };
 
+    const validatePhone = (phone: string) => {
+        const regex = /^\+?[1-9]\d{1,14}$/;
+        return regex.test(phone);
+    };
+
     const handleGoogleSignIn = async () => {
-        await signIn('google', {
-            callbackUrl: '/onboarding',
-            redirect: true,
-            prompt: 'select_account'
-        });
+        try {
+            setLoading(prev => ({ ...prev, google: true }));
+            await signIn('google', {
+                callbackUrl: '/onboarding',
+                redirect: true,
+                prompt: 'select_account'
+            });
+        } catch (error) {
+            setError('Google sign in failed. Please try again.');
+        } finally {
+            setLoading(prev => ({ ...prev, google: false }));
+        }
     };
 
-    const handleFacebookSignIn = () => {
-        signIn('facebook', { callbackUrl: '/onboarding' });
+    const handleFacebookSignIn = async () => {
+        try {
+            setLoading(prev => ({ ...prev, facebook: true }));
+            await signIn('facebook', { callbackUrl: '/onboarding' });
+        } catch (error) {
+            setError('Facebook sign in failed. Please try again.');
+        } finally {
+            setLoading(prev => ({ ...prev, facebook: false }));
+        }
     };
 
+    const handleContinue = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setError('');
+        setLoading(prev => ({ ...prev, email: true }));
+    
+        try {
+            if (authMethod === 'email') {
+                if (!validateEmail(email)) {
+                    throw new Error('Please enter a valid email address');
+                }
+    
+                // Add this check
+                const isAvailable = await checkEmailAvailability(email);
+                if (!isAvailable) {
+                    throw new Error('Email already registered. Please sign in instead.');
+                }
+    
+                setShowMultiStep(true);
+            } else if (authMethod === 'phone') {
+                if (!validatePhone(phone)) {
+                    throw new Error('Please enter a valid phone number');
+                }
+                // Handle phone verification
+            }
+        } catch (error: any) {
+            setError(error.message);
+        } finally {
+            setLoading(prev => ({ ...prev, email: false }));
+        }
+    };
+    
     const checkEmailAvailability = async (email: string) => {
         try {
             const response = await fetch('/api/auth/check-email', {
@@ -50,31 +115,10 @@ export default function RegisterContainer() {
             return false;
         }
     };
-
-    const handleEmailSignIn = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!validateEmail(email)) {
-            setEmailError('Please enter a valid email address');
-            return;
-        }
-        setIsChecking(true);
-        setEmailError('');
-        
-        const isAvailable = await checkEmailAvailability(email);
-        
-        if (!isAvailable) {
-            setEmailError('This email is already registered. Please sign in instead.');
-            setIsChecking(false);
-            return;
-        }
-        
-        setIsChecking(false);
-        setShowMultiStep(true);
-    };
-
+    
     return (
         <ClientOnly>
-            <div className="min-h-screen bg-white relative">
+            <div className="min-h-screen bg-gradient-to-br from-[#FBF8F1] to-white">
                 <div className="absolute inset-0 bg-black/48">
                     <AnimatePresence mode="wait">
                         {!showMultiStep ? (
@@ -82,115 +126,92 @@ export default function RegisterContainer() {
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 exit={{ opacity: 0, y: -20 }}
-                                transition={{ duration: 0.6 }}
-                                className="container mx-auto px-4 py-12 relative"
+                                className="container mx-auto px-4 py-12"
                             >
-                                <div className="max-w-[480px] mx-auto bg-[#FBF8F1] rounded-2xl shadow-2xl overflow-hidden">
+                                
+<div className="max-w-[480px] mx-auto bg-white rounded-2xl shadow-xl overflow-hidden text-[#100F0A]">
+
                                     <div className="p-8">
                                         <motion.h1
                                             initial={{ opacity: 0, y: 10 }}
                                             animate={{ opacity: 1, y: 0 }}
-                                            transition={{ delay: 0.2 }}
-                                            className={`text-4xl font-bold text-center mb-8 text-[#100F0A] ${relative.bold.className}`}
+                                            className={`text-4xl font-bold text-center mb-8 ${relative.bold.className}`}
                                         >
-                                            Let's go!
+                                            Find Your Soulmate
                                         </motion.h1>
-                                        
-                                        <div className="space-y-4">
-                                            <motion.button
+
+                                        {/* Social Login Buttons */}
+                                        <div className="space-y-4 mb-8">
+                                            <SocialButton
+                                                icon={<FcGoogle className="w-5 h-5" />}
+                                                text="Continue with Google"
                                                 onClick={handleGoogleSignIn}
-                                                initial={{ opacity: 0, x: -20 }}
-                                                animate={{ opacity: 1, x: 0 }}
-                                                transition={{ delay: 0.4 }}
-                                                className={`w-full bg-[#100F0A] text-white rounded-xl p-4 flex items-center justify-center space-x-3 hover:bg-[#2d2d2d] transition-all duration-300 ${relative.medium.className}`}
-                                            >
-                                                <div className="w-6 flex justify-center">
-                                                    <FcGoogle className="w-5 h-5" />
-                                                </div>
-                                                <span>Continue with Google</span>
-                                            </motion.button>
-
-                                            <motion.button
+                                                loading={loading.google}
+                                            />
+                                            <SocialButton
+                                                icon={<FaFacebook className="w-5 h-5" />}
+                                                text="Continue with Facebook"
                                                 onClick={handleFacebookSignIn}
-                                                initial={{ opacity: 0, x: -20 }}
-                                                animate={{ opacity: 1, x: 0 }}
-                                                transition={{ delay: 0.5 }}
-                                                className={`w-full bg-[#1877F2] text-white rounded-xl p-4 flex items-center justify-center space-x-3 hover:bg-[#1864d4] transition-all duration-300 ${relative.medium.className}`}
-                                            >
-                                                <div className="w-6 flex justify-center">
-                                                    <FaFacebook className="w-5 h-5" />
-                                                </div>
-                                                <span>Continue with Facebook</span>
-                                            </motion.button>
-
-                                            <AnimatePresence>
-                                                {showEmail && (
-                                                    <motion.form
-                                                        onSubmit={handleEmailSignIn}
-                                                        initial={{ opacity: 0, height: 0 }}
-                                                        animate={{ opacity: 1, height: 'auto' }}
-                                                        exit={{ opacity: 0, height: 0 }}
-                                                        className="space-y-4"
-                                                    >
-                                                        <input
-                                                            type="email"
-                                                            value={email}
-                                                            onChange={(e) => setEmail(e.target.value)}
-                                                            placeholder="Enter your email"
-                                                            disabled={isChecking}
-                                                            className="w-full p-4 rounded-xl border border-gray-300 focus:outline-none focus:border-[#100F0A] text-[#100F0A] placeholder:text-gray-400"
-                                                        />
-                                                        {emailError && (
-                                                            <p className="text-red-500 text-sm mt-1">{emailError}</p>
-                                                        )}
-                                                        <button
-                                                            type="submit"
-                                                            disabled={isChecking}
-                                                            className={`w-full bg-[#100F0A] text-white rounded-xl p-4 flex items-center justify-center space-x-3 hover:bg-[#2d2d2d] transition-all duration-300 ${isChecking ? 'opacity-50 cursor-not-allowed' : ''} ${relative.medium.className}`}
-                                                        >
-                                                            <div className="w-6 flex justify-center">
-                                                                {isChecking ? (
-                                                                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white" />
-                                                                ) : (
-                                                                    <HiMail className="w-5 h-5" />
-                                                                )}
-                                                            </div>
-                                                            <span>{isChecking ? 'Checking...' : 'Continue with Email'}</span>
-                                                        </button>
-                                                    </motion.form>
-                                                )}
-                                            </AnimatePresence>
-
-                                            {!showEmail && (
-                                                <motion.button
-                                                    onClick={() => setShowEmail(true)}
-                                                    className={`w-full text-center text-sm text-[#100F0A]/60 hover:text-[#100F0A] transition-all duration-300 ${relative.book.className}`}
-                                                >
-                                                    More options
-                                                </motion.button>
-                                            )}
+                                                loading={loading.facebook}
+                                                className="bg-[#1877F2]"
+                                            />
                                         </div>
 
-                                        <motion.div
-                                            initial={{ opacity: 0, y: 20 }}
-                                            animate={{ opacity: 1, y: 0 }}
-                                            transition={{ delay: 0.6 }}
-                                            className="mt-12 bg-[#100F0A]/8 p-8 rounded-xl"
-                                        >
-                                            <h2 className={`text-xl font-bold text-center mb-6 text-[#100F0A] ${relative.bold.className}`}>Or get the app</h2>
-                                            <div className="flex justify-center items-center space-x-4">
-                                                <img
-                                                    src="/images/appstore-dark.svg"
-                                                    alt="Download on App Store"
-                                                    className="h-[45px] w-auto cursor-pointer hover:opacity-90 transition-opacity"
-                                                />
-                                                <img
-                                                    src="/images/googleplay-dark.svg"
-                                                    alt="Get it on Google Play"
-                                                    className="h-[45px] w-auto cursor-pointer hover:opacity-90 transition-opacity object-contain"
-                                                />
-                                            </div>
-                                        </motion.div>
+                                        <Divider text="or" />
+
+                                        {/* Auth Method Selection */}
+                                        <div className="grid grid-cols-2 gap-4 mb-6">
+                                            <AuthMethodButton
+                                                method="email"
+                                                current={authMethod}
+                                                onClick={() => setAuthMethod('email')}
+                                                icon={<HiMail className="w-5 h-5" />}
+                                            />
+                                            <AuthMethodButton
+                                                method="phone"
+                                                current={authMethod}
+                                                onClick={() => setAuthMethod('phone')}
+                                                icon={<HiPhone className="w-5 h-5" />}
+                                            />
+                                        </div>
+
+                                        {/* Auth Input Form */}
+                                        {authMethod && (
+                                            <motion.form
+                                                initial={{ opacity: 0, height: 0 }}
+                                                animate={{ opacity: 1, height: 'auto' }}
+                                                exit={{ opacity: 0, height: 0 }}
+                                                onSubmit={handleContinue}
+                                                className="space-y-4"
+                                            >
+                                                {/* The relevant section where you're handling form input */}
+                                                <AuthInput
+            type={authMethod}
+            value={authMethod === 'email' ? email : phone}
+            onChange={(value) => {
+                if (authMethod === 'email') {
+                    setEmail(value);
+                } else {
+                    setPhone(value);
+                }
+            }}
+            error={error}
+            loading={loading.email}
+        />
+        <button
+            type="submit"
+            disabled={loading.email}
+            className={`w-full bg-[#100F0A] text-white rounded-xl p-4 ${
+                loading.email ? 'opacity-50' : 'hover:bg-[#2d2d2d]'
+            } transition-all duration-300`}
+        >
+            {loading.email ? 'Please wait...' : 'Continue'}
+        </button>
+    </motion.form>
+)}
+
+                                        {/* App Download Section */}
+                                        <AppDownload />
                                     </div>
                                 </div>
                             </motion.div>
@@ -199,29 +220,7 @@ export default function RegisterContainer() {
                         )}
                     </AnimatePresence>
 
-                    <motion.div
-                        initial={{ y: 100 }}
-                        animate={{ y: 0 }}
-                        transition={{ delay: 1, type: "spring", stiffness: 100 }}
-                        className="fixed bottom-0 left-0 right-0 bg-white"
-                    >
-                        <div className="container mx-auto px-6 py-4 flex items-center justify-between flex-wrap gap-4">
-                            <div className={`flex-1 min-w-[280px] ${relative.book.className}`}>
-                                <p className="text-sm text-[#100F0A]">
-                                    By clicking "I agree", you accept the use of cookies to optimize user experience.
-                                    <a href="#" className="underline ml-1">See our list of partners</a>
-                                </p>
-                            </div>
-                            <div className="flex items-center space-x-4">
-                                <button className={`bg-[#100F0A] text-white px-6 py-2 rounded-xl hover:bg-[#2d2d2d] transition-all duration-300 ${relative.medium.className}`}>
-                                    Accept
-                                </button>
-                                <button className={`text-sm text-[#100F0A] hover:underline transition-all duration-300 ${relative.book.className}`}>
-                                    Continue without accepting
-                                </button>
-                            </div>
-                        </div>
-                    </motion.div>
+                    <CookieConsent />
                 </div>
             </div>
         </ClientOnly>
