@@ -5,7 +5,7 @@ import FacebookProvider from "next-auth/providers/facebook"
 import { MongoDBAdapter } from "@auth/mongodb-adapter"
 import clientPromise from "@/lib/mongodb"
 
-const handler = NextAuth({
+const authHandler = NextAuth({
     adapter: MongoDBAdapter(clientPromise),
     providers: [
         CredentialsProvider({
@@ -15,49 +15,145 @@ const handler = NextAuth({
                 otp: { label: "OTP", type: "text" }
             },
             async authorize(credentials) {
-                if (!credentials?.email || !credentials?.otp) return null
-                
-                const client = await clientPromise
-                const db = client.db()
-                
-                const user = await db.collection('users').findOne({
-                    email: credentials.email.toLowerCase(),
-                    isVerified: true,
-                    verificationCode: null
-                })
-
-                if (!user) return null
-
-                return {
-                    id: user._id.toString(),
-                    email: user.email,
-                    profileCompleted: user.profileCompleted
+                try {
+                    if (!credentials?.email || !credentials?.otp) {
+                        console.log('Missing credentials');
+                        return null;
+                    }
+        
+                    const client = await clientPromise;
+                    const db = client.db();
+        
+                    // Add logging
+                    console.log('Verifying OTP:', {
+                        email: credentials.email,
+                        otp: credentials.otp
+                    });
+        
+                    const user = await db.collection('users').findOne({
+                        email: credentials.email.toLowerCase(),
+                        verificationCode: credentials.otp,
+                        verificationExpires: { $gt: new Date() }
+                    });
+        
+                    if (!user) {
+                        console.log('User not found or invalid OTP');
+                        return null;
+                    }
+        
+                    // Update user before returning
+                    await db.collection('users').updateOne(
+                        { _id: user._id },
+                        {
+                            $set: {
+                                isVerified: true,
+                                verificationCode: null,
+                                verificationExpires: null,
+                                lastLogin: new Date()
+                            }
+                        }
+                    );
+        
+                    // Add logging
+                    console.log('User authenticated:', user._id);
+        
+                    return {
+                        id: user._id.toString(),
+                        email: user.email,
+                        profileCompleted: user.profileCompleted
+                    };
+                } catch (error) {
+                    console.error('Authorization error:', error);
+                    return null;
                 }
             }
         }),
         GoogleProvider({
             clientId: process.env.GOOGLE_ID!,
-            clientSecret: process.env.GOOGLE_SECRET!
+            clientSecret: process.env.GOOGLE_SECRET!,
+            profile(profile) {
+                return {
+                    id: profile.sub,
+                    email: profile.email,
+                    name: profile.name,
+                    image: profile.picture,
+                    emailVerified: profile.email_verified,
+                    profileCompleted: false
+                };
+            }
         }),
         FacebookProvider({
             clientId: process.env.FACEBOOK_ID!,
-            clientSecret: process.env.FACEBOOK_SECRET!
+            clientSecret: process.env.FACEBOOK_SECRET!,
+            profile(profile) {
+                return {
+                    id: profile.id,
+                    email: profile.email,
+                    name: profile.name,
+                    image: profile.picture?.data?.url,
+                    emailVerified: true,
+                    profileCompleted: false
+                };
+            }
         })
     ],
     callbacks: {
+        async signIn({ user, account, profile }) {
+            try {
+                const client = await clientPromise;
+                const db = client.db();
+
+                if (account?.provider === 'google' || account?.provider === 'facebook') {
+                    const existingUser = await db.collection('users').findOne({
+                        email: user.email
+                    });
+
+                    if (!existingUser) {
+                        await db.collection('users').insertOne({
+                            email: user.email,
+                            name: user.name,
+                            image: user.image,
+                            emailVerified: true,
+                            provider: account.provider,
+                            createdAt: new Date(),
+                            profileCompleted: false,
+                            isVerified: true,
+                            lastLogin: new Date()
+                        });
+                    } else {
+                        // Update last login
+                        await db.collection('users').updateOne(
+                            { _id: existingUser._id },
+                            { 
+                                $set: { 
+                                    lastLogin: new Date(),
+                                    provider: account.provider 
+                                }
+                            }
+                        );
+                    }
+                }
+                return true;
+            } catch (error) {
+                console.error('Sign in error:', error);
+                return false;
+            }
+        },
         async jwt({ token, user }) {
             if (user) {
-                token.id = user.id
-                token.profileCompleted = user.profileCompleted
+                token.id = user.id;
+                token.profileCompleted = user.profileCompleted;
+                token.provider = user.provider;
             }
-            return token
+            return token;
         },
         async session({ session, token }) {
             if (token) {
-                session.user.id = token.id
-                session.user.profileCompleted = token.profileCompleted
+                session.user.id = token.id;
+                session.user.profileCompleted = token.profileCompleted;
+                session.user.provider = token.provider;
             }
-            return session
+            return session;
         }
     },
     pages: {
@@ -66,8 +162,8 @@ const handler = NextAuth({
     },
     session: {
         strategy: "jwt",
-        maxAge: 30 * 24 * 60 * 60
+        maxAge: 30 * 24 * 60 * 60 // 30 days
     }
-})
+});
 
-export { handler as GET, handler as POST }
+export { authHandler as GET, authHandler as POST };
