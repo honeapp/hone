@@ -133,7 +133,7 @@ export default function MultiStepForm({ initialEmail }: MultiStepFormProps) {
                                             <p className={`font-medium ${step >= stepItem.number ? 'text-[#100F0A]' : 'text-gray-400'}`}>
                                                 {stepItem.title}
                                             </p>
-                                            <p className="text-sm text-gray-500">{stepItem.description}</p>
+                                            <p className="text-sm text-[#100F0A]/60">{stepItem.description}</p>
                                         </div>
                                     </div>
                                     {index < steps.length - 1 && (
@@ -160,7 +160,7 @@ export default function MultiStepForm({ initialEmail }: MultiStepFormProps) {
                                                 step >= stepItem.number ? 'bg-[#100F0A]' : ''
                                             }`} />
                                         </div>
-                                        <p className="text-xs mt-2">{stepItem.title}</p>
+                                        <p className="text-xs mt-2 text-[#000]">{stepItem.title}</p>
                                     </div>
                                 ))}
                             </div>
@@ -173,10 +173,10 @@ export default function MultiStepForm({ initialEmail }: MultiStepFormProps) {
                                     exit={{ opacity: 0, y: -20 }}
                                     transition={{ duration: 0.3 }}
                                 >
-                                    <h2 className={`text-3xl font-bold mb-8 ${relative.bold.className}`}>
+                                    <h2 className={`text-3xl font-bold text-[#000] mb-8 ${relative.bold.className}`}>
                                         {steps[step - 1].title}
-                                        <p className="text-sm text-gray-500 mt-2 font-normal">
-                                            {steps[step - 1].description}
+                                        <p className="text-sm text-[#000] mt-2 font-normal">
+                                        {steps[step - 1].description}
                                         </p>
                                     </h2>
 
