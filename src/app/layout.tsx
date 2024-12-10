@@ -4,6 +4,7 @@ import "./globals.css";
 import { relative } from './fonts';
 import { SessionProvider } from 'next-auth/react';
 import AuthProvider from '@/providers/AuthProvider';
+import '../styles/datepicker.css';
 
 const outfit = Outfit({
   subsets: ['latin'],

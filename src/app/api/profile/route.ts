@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import clientPromise from '@/lib/mongodb';
 import { getServerSession } from 'next-auth/next';
-
+import { calculateProfileCompletion } from '@/utils/profileCompletion';
 import { authOptions } from '@/app/api/auth/[...nextauth]/auth';
 
 export async function GET(req: Request) {
@@ -25,7 +25,12 @@ export async function GET(req: Request) {
             }
         );
 
-        return NextResponse.json(userProfile);
+        const completionPercentage = calculateProfileCompletion(userProfile);
+
+        return NextResponse.json({
+            ...userProfile,
+            completionPercentage
+        });
     } catch (error) {
         console.error('Profile fetch error:', error);
         return NextResponse.json(

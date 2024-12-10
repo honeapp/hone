@@ -4,6 +4,8 @@ import GoogleProvider from "next-auth/providers/google"
 import FacebookProvider from "next-auth/providers/facebook"
 import { MongoDBAdapter } from "@auth/mongodb-adapter"
 import clientPromise from "@/lib/mongodb"
+import { getServerSession } from "next-auth"
+
 
 const authHandler = NextAuth({
     adapter: MongoDBAdapter(clientPromise),
@@ -71,11 +73,11 @@ const authHandler = NextAuth({
         GoogleProvider({
             clientId: process.env.GOOGLE_ID!,
             clientSecret: process.env.GOOGLE_SECRET!,
-            allowDangerousEmailAccountLinking: true, // Add this
+            allowDangerousEmailAccountLinking: true,
             profile(profile) {
                 return {
                     id: profile.sub,
-                    email: profile.email,
+                    email: profile.email?.toLowerCase(), // Ensure email is lowercase
                     name: profile.name,
                     image: profile.picture,
                     emailVerified: profile.email_verified,
@@ -85,6 +87,7 @@ const authHandler = NextAuth({
                 };
             }
         }),
+        
             FacebookProvider({
             clientId: process.env.FACEBOOK_ID!,
             clientSecret: process.env.FACEBOOK_SECRET!,
@@ -106,40 +109,44 @@ const authHandler = NextAuth({
                 const client = await clientPromise;
                 const db = client.db();
 
+                // Debug logging
+                console.log('Google sign-in attempt:', { email: user.email });
+
+
                 if (account?.provider === 'google' || account?.provider === 'facebook') {
                     const existingUser = await db.collection('users').findOne({
-                        email: user.email
+                        email: user.email?.toLowerCase()
                     });
 
-                    if (!existingUser) {
-                        await db.collection('users').insertOne({
-                            email: user.email,
-                            name: user.name,
-                            image: user.image,
-                            emailVerified: true,
-                            provider: account.provider,
-                            providerId: account.provider === 'google' ? profile.sub : profile.id,
-                            createdAt: new Date(),
-                            profileCompleted: false,
-                            isVerified: true,
-                            lastLogin: new Date()
-                        });
-                    } else {
-                        // Update last login
-                        await db.collection('users').updateOne(
-                            { _id: existingUser._id },
-                            {
-                                $set: {
-                                    lastLogin: new Date(),
-                                    provider: account.provider,
-                                    providerId: account.provider === 'google' ? profile.sub : profile.id
-                                }
-                            }
-                        );
+                    if (existingUser) {
+                        if (existingUser.profileCompleted) {
+                            console.log('User already has completed profile');
+                            return true; // Will redirect to /profile
+                        }
+                        return true; // Will redirect to /onboarding
                     }
-                }
+    
+        
+                        // Create new user
+                await db.collection('users').insertOne({
+                    email: user.email?.toLowerCase(),
+                    name: user.name,
+                    image: user.image,
+                    provider: 'google',
+                    providerId: profile.sub,
+                    emailVerified: true,
+                    createdAt: new Date(),
+                    profileCompleted: false,
+                    isVerified: true,
+                    lastLogin: new Date()
+                });
+                
+                return true; // Will redirect to /onboarding
+            }
+                 
                 return true;
-            } catch (error) {
+            } 
+            catch (error) {
                 console.error('Sign in error:', error);
                 return false;
             }
@@ -152,7 +159,26 @@ const authHandler = NextAuth({
             }
             return token;
         },
-        async session({ session, token }) {
+        async redirect({ url, baseUrl }) {
+            if (url.startsWith(baseUrl)) {
+                const client = await clientPromise;
+                const db = client.db();
+                const session = await getServerSession(authHandler);  // Pass the auth config
+        
+                if (session?.user?.email) {
+                    const user = await db.collection('users').findOne({
+                        email: session.user.email.toLowerCase()
+                    });
+        
+                    if (!user?.profileCompleted) {
+                        return `${baseUrl}/onboarding`;
+                    }
+                }
+            }
+            return url;
+        },
+    
+            async session({ session, token }) {
             if (token) {
                 session.user.id = token.id;
                 session.user.profileCompleted = token.profileCompleted;

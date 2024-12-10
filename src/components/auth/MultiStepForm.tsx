@@ -93,26 +93,52 @@ export default function MultiStepForm({ initialEmail }: MultiStepFormProps) {
 
     const handleSubmit = async () => {
         if (!validateStep()) return;
-
+    
         if (step === 5) {
             try {
+
+                // Check email availability again before final submission
+            const checkResponse = await fetch('/api/auth/check-email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: formData.email }),
+            });
+
+            const checkData = await checkResponse.json();
+            
+            if (!checkData.available) {
+                window.location.href = '/auth/login';
+                return;
+            }
+
+                // Log form data being sent
+                console.log('Sending registration data:', formData);
+    
                 const response = await fetch('/api/auth/register', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(formData),
                 });
-
+    
                 const data = await response.json();
-                if (!response.ok) throw new Error(data.message || 'Registration failed');
+                console.log('Server response:', data); // Add this line
+    
+                if (!response.ok) {
+                    throw new Error(data.message || 'Registration failed');
+                }
                 window.location.href = '/auth/login';
             } catch (error: any) {
-                console.error('Registration error:', error);
-                setErrors(prev => ({ ...prev, submit: error.message }));
+                console.error('Full registration error:', error);
+                setErrors(prev => ({
+                    ...prev,
+                    submit: error.message || 'Registration failed. Please try again.'
+                }));
             }
         } else {
             setStep(step + 1);
         }
     };
+    
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-[#FBF8F1] to-white">

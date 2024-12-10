@@ -79,7 +79,7 @@ export default function Step4Lifestyle({ formData, setFormData, errors, setError
                         {occupationSuggestions.map((suggestion, index) => (
                             <div
                                 key={index}
-                                className="px-4 py-2 hover:bg-gray-50 cursor-pointer"
+                                className="px-4 py-2 hover:bg-gray-50 cursor-pointer text-[#000]"
                                 onClick={() => {
                                     setFormData({ ...formData, occupation: suggestion });
                                     setShowSuggestions(false);

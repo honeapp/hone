@@ -7,16 +7,21 @@ export async function POST(req: Request) {
         const client = await clientPromise;
         const db = client.db();
 
-        const existingUser = await db.collection('users').findOne({ 
-            email: email.toLowerCase() 
+        const userExists = await db.collection('users').findOne({
+            $or: [
+                { email: email.toLowerCase() },
+                { "accounts.provider": "google", email: email.toLowerCase() },
+                { "accounts.provider": "facebook", email: email.toLowerCase() }
+            ]
         });
 
         return NextResponse.json({
-            available: !existingUser
+            available: !userExists,
+            message: userExists ? 'Email already registered' : 'Email available'
         });
     } catch (error) {
         return NextResponse.json(
-            { error: 'Email check failed' },
+            { error: 'Failed to check email availability' },
             { status: 500 }
         );
     }

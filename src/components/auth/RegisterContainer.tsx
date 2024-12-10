@@ -78,26 +78,29 @@ export default function RegisterContainer() {
                 if (!validateEmail(email)) {
                     throw new Error('Please enter a valid email address');
                 }
-    
-                // Add this check
-                const isAvailable = await checkEmailAvailability(email);
-                if (!isAvailable) {
-                    throw new Error('Email already registered. Please sign in instead.');
-                }
-    
-                setShowMultiStep(true);
-            } else if (authMethod === 'phone') {
-                if (!validatePhone(phone)) {
-                    throw new Error('Please enter a valid phone number');
-                }
-                // Handle phone verification
-            }
-        } catch (error: any) {
-            setError(error.message);
-        } finally {
-            setLoading(prev => ({ ...prev, email: false }));
-        }
-    };
+                    
+    // Check if user exists with any provider
+    const response = await fetch('/api/auth/check-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+    });
+    const data = await response.json();
+
+    if (!data.available) {
+        // If user exists, redirect to login
+        window.location.href = '/auth/login';
+        return;
+    }
+
+    setShowMultiStep(true);
+}
+} catch (error: any) {
+setError(error.message);
+} finally {
+setLoading(prev => ({ ...prev, email: false }));
+}
+};
     
     const checkEmailAvailability = async (email: string) => {
         try {

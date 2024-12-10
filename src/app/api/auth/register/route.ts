@@ -1,10 +1,8 @@
 import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import clientPromise from '@/lib/mongodb';
-import { sendVerificationEmail } from '@/lib/email/emailService';
 import { v2 as cloudinary } from 'cloudinary';
-import { sendVerificationEmail } from '@/lib/email/emailService';
-
+import { sendWelcomeEmail } from '@/lib/email/emailService';
 
 cloudinary.config({
     cloud_name: 'db8lnhf7s',
@@ -18,7 +16,7 @@ export async function POST(req: Request) {
         const db = client.db();
         
         const data = await req.json();
-        console.log('Received registration data:', data);
+        console.log('Registration attempt:', data.email);
 
         const {
             email,
@@ -67,8 +65,19 @@ export async function POST(req: Request) {
         }
 
         // Check if user exists
-        const userExists = await db.collection('users').findOne({ email: email.toLowerCase() });
+        const userExists = await db.collection('users').findOne({
+            $or: [
+                { email: data.email.toLowerCase() },
+                { "accounts.provider": "google", email: data.email.toLowerCase() },
+                { "accounts.provider": "facebook", email: data.email.toLowerCase() }
+            ]
+        });
+        
+        console.log('Existing user check:', userExists);
+
         if (userExists) {
+            console.log('User exists:', userExists);
+
             return NextResponse.json(
                 { message: 'Email already registered' },
                 { status: 400 }
@@ -87,7 +96,7 @@ export async function POST(req: Request) {
         const hashedPassword = await bcrypt.hash(password, 10);
 
         // Create user with the existing structure
-        const user = await db.collection('users').insertOne({
+        const newUser = await db.collection('users').insertOne({
             email: email.toLowerCase(),
             password: hashedPassword,
             fullName,
@@ -102,18 +111,17 @@ export async function POST(req: Request) {
             photos: photos || [],
             createdAt: new Date(),
             isVerified: false,
-            verificationExpires: new Date(+new Date() + 24 * 60 * 60 * 1000),
             profileCompleted: true,
             lastActive: new Date()
         });
 
-        // Send verification email
-        await sendVerificationEmail(user.insertedId.toString(), email);
+        // Send welcome email
+        await sendWelcomeEmail(email, fullName);
 
         return NextResponse.json({
-            message: 'Registration successful. Please check your email to verify your account.',
+            message: 'Registration successful. Please check your email.',
             user: {
-                id: user.insertedId,
+                id: newUser.insertedId,
                 email: email,
                 fullName: fullName
             }
