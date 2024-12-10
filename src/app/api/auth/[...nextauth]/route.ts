@@ -71,6 +71,7 @@ const authHandler = NextAuth({
         GoogleProvider({
             clientId: process.env.GOOGLE_ID!,
             clientSecret: process.env.GOOGLE_SECRET!,
+            allowDangerousEmailAccountLinking: true, // Add this
             profile(profile) {
                 return {
                     id: profile.sub,
@@ -78,11 +79,13 @@ const authHandler = NextAuth({
                     name: profile.name,
                     image: profile.picture,
                     emailVerified: profile.email_verified,
-                    profileCompleted: false
+                    profileCompleted: false,
+                    provider: 'google',
+                    providerId: profile.sub
                 };
             }
         }),
-        FacebookProvider({
+            FacebookProvider({
             clientId: process.env.FACEBOOK_ID!,
             clientSecret: process.env.FACEBOOK_SECRET!,
             profile(profile) {
@@ -115,6 +118,7 @@ const authHandler = NextAuth({
                             image: user.image,
                             emailVerified: true,
                             provider: account.provider,
+                            providerId: account.provider === 'google' ? profile.sub : profile.id,
                             createdAt: new Date(),
                             profileCompleted: false,
                             isVerified: true,
@@ -124,10 +128,11 @@ const authHandler = NextAuth({
                         // Update last login
                         await db.collection('users').updateOne(
                             { _id: existingUser._id },
-                            { 
-                                $set: { 
+                            {
+                                $set: {
                                     lastLogin: new Date(),
-                                    provider: account.provider 
+                                    provider: account.provider,
+                                    providerId: account.provider === 'google' ? profile.sub : profile.id
                                 }
                             }
                         );

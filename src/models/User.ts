@@ -8,10 +8,6 @@ const userSchema = new mongoose.Schema({
         trim: true,
         lowercase: true
     },
-    password: { 
-        type: String, 
-        required: true 
-    },
     phoneNumber: { 
         type: String, 
         required: false,
@@ -80,6 +76,21 @@ const userSchema = new mongoose.Schema({
     profileCompleted: { 
         type: Boolean, 
         default: false 
+    },
+    provider: {
+        type: String,
+        enum: ['credentials', 'google', 'facebook'],
+        default: 'credentials'
+    },
+    providerId: {
+        type: String,
+        sparse: true
+    },
+    password: {
+        type: String,
+        required: function() {
+            return this.provider === 'credentials';
+        }
     },
     lastActive: {
         type: Date,
