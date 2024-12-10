@@ -130,27 +130,31 @@ const authHandler = NextAuth({
                         // Create new user
                 await db.collection('users').insertOne({
                     email: user.email?.toLowerCase(),
-                    name: user.name,
-                    image: user.image,
-                    provider: 'google',
-                    providerId: profile.sub,
-                    emailVerified: true,
-                    createdAt: new Date(),
-                    profileCompleted: false,
-                    isVerified: true,
-                    lastLogin: new Date()
+                        name: user.name,
+                        image: user.image,
+                        provider: 'google',
+                        providerId: profile.sub,
+                        emailVerified: true,
+                        createdAt: new Date(),
+                        profileCompleted: false,
+                        isVerified: true,
+                        lastLogin: new Date()
                 });
-                
-                return true; // Will redirect to /onboarding
+                // Add welcome email for new Google/Facebook users
+                try {
+                    await sendWelcomeEmail(user.email!, user.name!);
+                    console.log('Welcome email sent to social auth user:', user.email);
+                } catch (emailError) {
+                    console.error('Failed to send welcome email:', emailError);
+                }
             }
-                 
-                return true;
-            } 
-            catch (error) {
-                console.error('Sign in error:', error);
-                return false;
-            }
-        },
+            return true;
+        
+    } catch (error) {
+        console.error('Sign in error:', error);
+        return false;
+    }
+},
         async jwt({ token, user }) {
             if (user) {
                 token.id = user.id;
